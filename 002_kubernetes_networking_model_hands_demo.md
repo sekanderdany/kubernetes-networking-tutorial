@@ -318,5 +318,33 @@ kubectl exec pod1 -c sleep1 -- wget -qO- http://10.244.0.6:80
 
 ---
 
-_End of Kubernetes Networking Model – Hands‑on Lab_
+## Final Sets of Commands
 
+Use these consolidated commands at the end of the lab:
+
+```bash
+vi p1.yaml
+vi p2.yaml
+k create -f p1.yaml
+k create -f p2.yaml
+k get po
+k get pods -o wide
+ssh node02
+lsns
+lsns -t pid
+ip netns identify 27738
+ip addr
+ip netns identify 27738
+ip netns exec cni-022d9a7f-05cc-732b-dca7-a4f6d6e5a4b9 -- ip addr
+# exit from node02
+k get pods
+k exec -i pod1 -c sleep1 -- ip addr
+k exec -i pod1 -c sleep2 -- ip addr
+kubectl exec pod1 -c sleep1 -- wget -qO- http://localhost:80
+kubectl get pods -o=jsonpath='{range .items[*]}{"PodName: "}{.metadata.name}{"\t"}{"podIP: "}{.status.podIP}{"\n"}{end}'
+kubectl exec pod1 -c sleep1 -- wget -qO- http://172.17.1.2:80
+```
+
+---
+
+_End of Kubernetes Networking Model – Hands‑on Lab_
