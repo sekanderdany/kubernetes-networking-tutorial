@@ -1,0 +1,109 @@
+Kubernetes makes it very simple to communicate with Pods across the cluster. This is great, but is not likely a setup for a production-grade cluster where you need to include security-hardening practices. Control the flow of the network and ensure compliance. In most cases, we cannot have a wide-open network.
+
+This is where network policies come into play. In its most basic form, network policies are a native Kubernetes resource that defines rules for controlling traffic flow between pods within a cluster. These policies enable fine-grained control over network communication, allowing administrators to enforce security, segmentation, and isolation of applications within the cluster. The primary purpose of Kubernetes network policies is to enhance the security and isolation of applications within the Kubernetes cluster.
+
+By defining and enforcing network policies, administrators can control which pods are allowed to communicate with each other and restrict access to sensitive services and resources. Think of it like setting up boundaries and traffic signs on a road. Just as these signs guide cars and trucks on the road, network policies in Kubernetes guide and control the flow of traffic between pods.
+
+Network policies direct the flow in the Kubernetes cluster. Their main job is to make sure that only the right resources can talk to each other. Network policies are implemented by the CNI plugins, so attempting to use a network policy without a plugin would not work.
+
+Network policies control the flow to resources through the use of ingress and egress rules. The entities that a pod can communicate with are identified through a combination of the following three identifiers: other pods, namespaces, and IP blocks. When defining a pod- or namespace-based network policy, a selector is used to specify what traffic is allowed to and from the pods. When defining an IP-based network policy, we define policies based on IP blocks.
+
+There are two ways in which a pod can be isolated. These two types of isolation are ingress, which defines what incoming network flows are allowed from, and egress, which defines network flows allowed going to.
+
+Let’s go through the process of defining a NetworkPolicy.
+
+Network policies are defined by the NetworkPolicy kind and are defined at the namespace level. We use a pod selector to specify which pods to apply the policy to. Note here that excluding matchLabels will apply to all pods in the namespace. Define a policyTypes.
+
+This is one or both of the two isolation types of egress and ingress. For each policyTypes, define the list of entities inside either a to block for egress or a from block for ingress. This is a list of rules to define the network flows.
+
+For namespace and pod entities, selection is done through using the Namespace Selector and Pod Selector fields. You can either use the Match Labels or Match Expressions fields to specify the targets. Note that you can use the Match Expressions field to target multiple namespaces. For IPBlock, you have the option to specify a specific CIDR block.
+
+Using the CIDR field, you can also specify an except field to exclude a specific CIDR block from being included.
+
+Network Policy is all about defining Layer 4 flow. Because of this, it is also possible to configure by protocol and even a range of ports within your to and from blocks. This is configured using the ports field. This field allows for specifying port, which is the given port on a Pod for ingress or egress, protocol, which is used to specify the protocol of the port. Left unspecified, it will default to TCP, and endPort, which is used to allow for a port range starting with the port and ending with this value.
+
+Defining ports is just another way to further enhance control over the network. If no policy exists, then all ingress and egress is allowed to and from all Pods.
+
+You can, however, create a default policy for a namespace, meaning that you do not target any specific Pods in a given namespace.
+
+By not targeting any pods, this applies to all pods in the namespace. For example, to deny all ingress in the default namespace, you could use the following policy named default-deny-ingress and not specify any from blocks. To allow all, you would specify the ingress block without targets in the to or from. These same policies can be applied as egress. Any combination of these policy types can be applied together in one single policy depending on how you wish to manage them.
+
+Network policies provide some major benefits. They provide enhanced and granular security to the network.
+
+They provide a means of isolation for certain workloads. Some of your applications may require higher security than others. This allows them to run under the same Kubernetes cluster.
+
+They also provide a way to be compliant for data and security privacy. Network policies can help with compliance for laws such as GDPR, HIPAA, and PCI. Network policies also help reduce the attack surface and can help restrict communication to only what is necessary.
+
+They also provide a means of consistency in implementation. If an application is misconfigured, for example, they can guard against it affecting other applications.
+
+We have seen that network policies can be used to control ingress and egress flow on Pods, targeting specific Pods, or specific Namespaces, or by specific IP CIDR blocks. They can even target a specific port, or as of Kubernetes 1.25, a range of ports.
+
+It is important to understand its limits. They cannot force traffic through a common gateway, much like a service mesh does.
+
+They cannot handle anything that deals with TLS. They cannot limit traffic at a node level. Currently, there is no logging about the security events related to NetworkPolicies.
+
+This includes deny or allow. They cannot prevent traffic on the loopback device or traffic coming from the host. They cannot target Service IPs, but only labels of namespaces or pods.
+
+And finally, they cannot target Layer 7, such as HTTP or HTTPS. This can be done with some of the CNI-specific network policies.
+
+This will be covered in more detail in later sections, but should be touched on. Some CNIs provide enhanced network policies that aid in tasks that Kubernetes NetworkPolicies cannot. CNI solutions such as Calico, Cilium, and Istio provide advanced functionality that provides more policies, such as Layer 7, routing traffic through gateways, and global policies.
+
+NetworkPolicies are a powerful mechanism for pod communication control.
+
+Here we’re going to do a quick demo on network policies. Network policies are likely not a new concept to you, but we are going to set up a couple of default policies and then see how we can allow for connections to only specific pods.
+
+So let’s go ahead, and we’re going to log into one of our first pods here and ensure that we can make egress connections.
+
+You can see here we’re able to reach out. Go ahead and we’re going to get an IP from a Pod.
+
+Running in the kube-system namespace. And we’re just going to make sure we can ping one of these pods, so all pods should be accessible.
+
+As a default. This IP. You can see we’re getting a response from this pod as well. By default, Pods are all wide open to all egress and ingress.
+
+There is no isolation. So we’re going to go ahead now and apply some default network policies to isolate our pods running in the default namespace.
+
+Looking at what we have running in the default namespace, we have three pods running. We’re assuming that all these pods are part of the same application, but we’re going to use pod 1 as a management pod to test connections to the other pods, which are running NGINX.
+
+So let’s go ahead and apply a default rule that denies all egress. As we saw before, we could reach google.com and also a Pod in the kube-system namespace. So let’s look at our default egress rule that we’ve created here. And this is going to apply to all pods in the default namespace. We’re going to deny all egress.
+
+Go ahead and apply this. Go ahead and describe this network policy.
+
+Default deny egress. This is not affecting ingress traffic, and in fact it is just for egress. Let’s go ahead and execute our ping command on that Pod again.
+
+Here we’re starting to get timeouts. Cancel that, and then let’s try this again. Now this is also starting to time out.
+
+After we apply this policy, we can no longer reach either of these. Now we can guarantee that there will be no data that’s transferred outside the default namespace from our pods.
+
+So to further isolate these pods, let’s go ahead and apply a default ingress rule as well.
+
+We have also here a default deny ingress. So we’re not going to be able to use pod 1 to test connections because we’ve denied all egress to all pods in that namespace. So we’re going to go ahead and launch a pod in the kube-system namespace and see if we can reach the pod running in the default namespace, the NGINX running in the default namespace.
+
+So let’s go ahead and apply this policy. So, as we mentioned, we have some pods that are running NGINX.
+
+So, kubectl get pods, Pod2 is one of them that’s running NGINX. Let’s get the pod IP. We’re going to go ahead and run a curl command from a pod running in the kube-system namespace on this pod IP. We’re going to call this test-nginx. Here you can see that we are actually getting timeouts.
+
+Now we need our management-pod-1 to be able to talk to the NGINX pods in our namespace. So we need to do two things to our policies to allow this to happen.
+
+First we need to allow egress to the pods in the default namespace.
+
+And the second thing is we need to allow ingress on the NGINX pods. So we look at the way that our pods are configured.
+
+We have labels for NGINX that are app=nginx. And then for our CentOS, they are labeled app=centos. There’s another one, app=nginx.
+
+And then our other pod is labeled app=centos. So let’s go back to our egress. Open our egress. And here, in our policy, we’re going to add an egress block that allows egress to our app=nginx pods on port 80. So let’s go ahead and deploy that. Okay, it is configured.
+
+But the other thing that we need to do is we also need to open up ingress. So let’s go back to our ingress.
+
+And inside of here, we’re going to add in our ingress block that ingress is allowed to happen from app=centos pods on port 80.
+
+Go ahead and save that. Apply it. Now let’s go back to our CentOS pod and see if we can make a connection to our NGINX.
+
+Let’s get the IP of our pod, and let’s execute. We’re going to curl that Pod IP, pod-2. And now you can see that we are actually able to make our connection.
+
+So just to demonstrate the port configuration, let’s go ahead and run the same curl command, but let’s do a different port, like 8080.
+
+You can see here, we got a timeout, so our network policy denied us on port 8080. So this is awesome.
+
+So just to recap what we’ve seen, you can use the network policies to isolate your pods. This is either an egress or ingress network policy.
+
+You can target specific pods. You can target specific namespaces. But now let’s go over and apply what we learned.
